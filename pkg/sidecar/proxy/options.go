@@ -91,7 +91,6 @@ const (
 	defaultDataParallelSize      = 1
 	defaultMooncakeBootstrapPort = 8998
 	defaultP2PConnectorPort      = 7777
-	defaultMetricsPort           = 9090
 
 	// defaultMoRIIOParallelDecodeWaitTimeout backstops the parallel WRITE
 	// dispatch: it bounds how long the decode leg waits on the prefill outcome
@@ -224,7 +223,6 @@ func NewOptions() *Options {
 			PoolGroup:               routing.InferencePoolAPIGroup,
 			DecodeChunkSize:         0,
 			Tracing:                 false,
-			MetricsPort:             defaultMetricsPort,
 			// MoRI-IO defaults: off, preserving existing NIXLv2 behaviour.
 			// Port defaults match vLLM's MoRI-IO connector defaults.
 			MoRIIOWriteMode:           false,
@@ -662,11 +660,6 @@ func (opts *Options) Validate() error {
 	// offloading already provides the tier natively and needs no flag.
 	if opts.EnableP2PPull && opts.KVConnector != KVConnectorNIXLV2 {
 		return fmt.Errorf("--enable-p2p-pull requires --kv-connector=%s (got %q)", KVConnectorNIXLV2, opts.KVConnector)
-	}
-
-	// Validate metrics port (0 disables the metrics server)
-	if opts.MetricsPort < 0 || opts.MetricsPort > 65535 {
-		return fmt.Errorf("--metrics-port must be between 0 and 65535 (0 disables it), got %d", opts.MetricsPort)
 	}
 
 	// Validate SSRF protection requirements
