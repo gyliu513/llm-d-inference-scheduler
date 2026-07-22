@@ -88,13 +88,13 @@ func (s *Server) runConcurrentPD(
 		pw := &bufferedResponseWriter{}
 		prefillHandler.ServeHTTP(pw, prefillReq)
 		prefillDuration := time.Since(prefillStart)
-		metrics.RecordPrefillDuration(connector, prefillDuration)
+		metrics.RecordPrefillDuration(prefillDuration)
 		prefillSpan.SetAttributes(
 			attribute.Int("llm_d.pd_proxy.prefill.status_code", pw.statusCode),
 			attribute.Float64("llm_d.pd_proxy.prefill.duration_ms", float64(prefillDuration.Milliseconds())),
 		)
 		if isHTTPError(pw.statusCode) {
-			metrics.RecordError(connector, metrics.StagePrefill)
+			metrics.RecordError(metrics.StagePrefill)
 			prefillSpan.SetStatus(codes.Error, "prefill request failed")
 		}
 		s.logger.V(logging.DEBUG).Info("concurrent-dispatch prefill request completed", "connector", connector, "status", pw.statusCode)
@@ -116,7 +116,7 @@ func (s *Server) runConcurrentPD(
 	s.decoderProxy.ServeHTTP(w, decodeReq)
 
 	decodeDuration := time.Since(decodeStart)
-	metrics.RecordDecodeDuration(connector, decodeDuration)
+	metrics.RecordDecodeDuration(decodeDuration)
 	decodeSpan.SetAttributes(
 		attribute.Float64("llm_d.pd_proxy.decode.duration_ms", float64(decodeDuration.Milliseconds())),
 		attribute.String("llm_d.pd_proxy.decode.target", s.config.DecoderURL.Host),
