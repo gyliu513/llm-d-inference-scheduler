@@ -113,10 +113,15 @@ func (s *Server) runConcurrentPD(
 	decodeStart := time.Now()
 
 	decodeReq = decodeReq.WithContext(ctx)
-	s.decoderProxy.ServeHTTP(w, decodeReq)
+	decodeWriter := &statusCapturingResponseWriter{ResponseWriter: w}
+	s.decoderProxy.ServeHTTP(decodeWriter, decodeReq)
 
 	decodeDuration := time.Since(decodeStart)
 	metrics.RecordDecodeDuration(decodeDuration)
+	if isHTTPError(decodeWriter.statusCode) {
+		metrics.RecordError(metrics.StageDecode)
+		decodeSpan.SetStatus(codes.Error, "decode request failed")
+	}
 	decodeSpan.SetAttributes(
 		attribute.Float64("llm_d.pd_proxy.decode.duration_ms", float64(decodeDuration.Milliseconds())),
 		attribute.String("llm_d.pd_proxy.decode.target", s.config.DecoderURL.Host),

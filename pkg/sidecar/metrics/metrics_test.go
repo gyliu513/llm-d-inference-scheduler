@@ -94,3 +94,28 @@ func TestRegisterIdempotent(t *testing.T) {
 		Register()
 	})
 }
+
+// TestMetricNames pins the fully-qualified names this package exports, so a
+// subsystem or Name field rename fails this test instead of silently
+// breaking every scrape config/dashboard built on the doc comments' promises.
+func TestMetricNames(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(requestsTotal, disaggRequestsTotal, encodeDuration, prefillDuration, decodeDuration, errorsTotal)
+
+	mfs, err := reg.Gather()
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(mfs))
+	for _, mf := range mfs {
+		names = append(names, mf.GetName())
+	}
+
+	require.ElementsMatch(t, []string{
+		"llm_d_disagg_sidecar_requests_total",
+		"llm_d_disagg_sidecar_disagg_requests_total",
+		"llm_d_disagg_sidecar_encode_duration_seconds",
+		"llm_d_disagg_sidecar_prefill_duration_seconds",
+		"llm_d_disagg_sidecar_decode_duration_seconds",
+		"llm_d_disagg_sidecar_request_errors_total",
+	}, names)
+}

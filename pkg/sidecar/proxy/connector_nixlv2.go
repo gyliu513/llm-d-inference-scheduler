@@ -430,7 +430,8 @@ retryLoop:
 	if trace := s.logger.V(logging.TRACE); trace.Enabled() {
 		trace.Info("sending request to decoder", logging.HTTPBodyKey, string(dbody))
 	}
-	decodeWriter, finalizeDecodeWriter := newCachedTokensResponseWriterWithFinalize(w, pCachedTokens, streamingEnabled)
+	statusWriter := &statusCapturingResponseWriter{ResponseWriter: w}
+	decodeWriter, finalizeDecodeWriter := newCachedTokensResponseWriterWithFinalize(statusWriter, pCachedTokens, streamingEnabled)
 	dataParallelUsed := s.forwardDataParallel && s.dataParallelHandler(decodeWriter, dreq)
 	decodeSpan.SetAttributes(attribute.Bool("llm_d.pd_proxy.decode.data_parallel", dataParallelUsed))
 
@@ -440,6 +441,8 @@ retryLoop:
 		s.dispatchDecode(decodeWriter, dreq, body)
 	}
 	if err := finalizeDecodeWriter(); err != nil {
+		metrics.RecordDecodeDuration(time.Since(decodeStart))
+		metrics.RecordError(metrics.StageDecode)
 		s.logger.Error(err, "failed to flush cached token response writer")
 		decodeSpan.SetStatus(codes.Error, "failed to flush cached token response writer")
 		return
@@ -447,6 +450,10 @@ retryLoop:
 
 	decodeDuration := time.Since(decodeStart)
 	metrics.RecordDecodeDuration(decodeDuration)
+	if statusWriter.statusCode < 200 || statusWriter.statusCode >= 300 {
+		metrics.RecordError(metrics.StageDecode)
+		decodeSpan.SetStatus(codes.Error, "decode request failed")
+	}
 	decodeSpan.SetAttributes(attribute.Float64("llm_d.pd_proxy.decode.duration_ms", float64(decodeDuration.Milliseconds())))
 
 	// Calculate end-to-end P/D timing metrics.
